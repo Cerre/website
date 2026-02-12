@@ -1,65 +1,195 @@
-import Image from "next/image";
+const NAV_LINKS = [
+  { label: "About", href: "#about" },
+  { label: "Projects", href: "#projects" },
+  { label: "Skills", href: "#skills" },
+  { label: "Contact", href: "#contact" },
+];
+
+const SOCIAL_LINKS = [
+  { label: "GitHub", href: "https://github.com/filipstrand" },
+  { label: "LinkedIn", href: "https://linkedin.com/in/filip" },
+];
+
+const PROJECTS = [
+  {
+    title: "Project Alpha",
+    description:
+      "An end-to-end ML pipeline for real-time anomaly detection on streaming data.",
+    tech: ["Python", "PyTorch", "Kafka", "GCP"],
+    href: "#",
+  },
+  {
+    title: "Project Beta",
+    description:
+      "Full-stack web application with a FastAPI backend and Next.js frontend.",
+    tech: ["TypeScript", "Next.js", "FastAPI", "PostgreSQL"],
+    href: "#",
+  },
+  {
+    title: "Project Gamma",
+    description:
+      "CLI tool for automating cloud infrastructure provisioning and monitoring.",
+    tech: ["Go", "Terraform", "Docker", "AWS"],
+    href: "#",
+  },
+];
+
+const SKILLS: Record<string, string[]> = {
+  ML: ["PyTorch", "TensorFlow", "scikit-learn", "Hugging Face", "MLflow"],
+  Backend: ["Python", "FastAPI", "Go", "PostgreSQL", "Redis"],
+  Frontend: ["TypeScript", "React", "Next.js", "Tailwind CSS"],
+  Tools: ["Docker", "Kubernetes", "GCP", "Terraform", "Git"],
+};
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div className="min-h-screen bg-background text-foreground">
+      {/* Nav */}
+      <nav className="sticky top-0 z-50 border-b border-zinc-200 bg-background/80 backdrop-blur-sm dark:border-zinc-800">
+        <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-4">
+          <a href="#" className="text-sm font-semibold tracking-tight">
+            Filip
+          </a>
+          <ul className="flex gap-6 text-sm text-zinc-500 dark:text-zinc-400">
+            {NAV_LINKS.map((link) => (
+              <li key={link.href}>
+                <a
+                  href={link.href}
+                  className="transition-colors hover:text-foreground"
+                >
+                  {link.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </nav>
+
+      <main className="mx-auto max-w-3xl px-6">
+        {/* Hero */}
+        <section className="flex min-h-[70vh] flex-col justify-center py-24">
+          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
+            Filip
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="mt-2 text-lg text-accent font-medium">
+            ML &amp; Software Engineer
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+          <p className="mt-4 max-w-lg text-zinc-600 dark:text-zinc-400">
+            Building intelligent systems at the intersection of machine learning
+            and software engineering.
+          </p>
+          <div className="mt-8 flex gap-4">
+            {SOCIAL_LINKS.map((link) => (
+              <a
+                key={link.label}
+                href={link.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-medium transition-colors hover:bg-zinc-100 dark:border-zinc-800 dark:hover:bg-zinc-900"
+              >
+                {link.label}
+              </a>
+            ))}
+          </div>
+        </section>
+
+        {/* About */}
+        <section id="about" className="py-20">
+          <h2 className="text-2xl font-bold tracking-tight">About</h2>
+          <p className="mt-4 leading-relaxed text-zinc-600 dark:text-zinc-400">
+            I&apos;m a software engineer with a focus on machine learning and
+            backend systems. I enjoy building things that are fast, reliable, and
+            useful — from training models to deploying them in production. When
+            I&apos;m not writing code, you can find me exploring new
+            technologies or contributing to open-source projects.
+          </p>
+        </section>
+
+        {/* Projects */}
+        <section id="projects" className="py-20">
+          <h2 className="text-2xl font-bold tracking-tight">Projects</h2>
+          <div className="mt-8 grid gap-6 sm:grid-cols-2">
+            {PROJECTS.map((project) => (
+              <a
+                key={project.title}
+                href={project.href}
+                className="group rounded-xl border border-zinc-200 p-6 transition-colors hover:border-accent/50 dark:border-zinc-800 dark:hover:border-accent/50"
+              >
+                <h3 className="font-semibold group-hover:text-accent transition-colors">
+                  {project.title}
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+                  {project.description}
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {project.tech.map((t) => (
+                    <span
+                      key={t}
+                      className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                    >
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              </a>
+            ))}
+          </div>
+        </section>
+
+        {/* Skills */}
+        <section id="skills" className="py-20">
+          <h2 className="text-2xl font-bold tracking-tight">Skills</h2>
+          <div className="mt-8 grid gap-8 sm:grid-cols-2">
+            {Object.entries(SKILLS).map(([category, items]) => (
+              <div key={category}>
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-accent">
+                  {category}
+                </h3>
+                <ul className="mt-3 space-y-1.5 text-sm text-zinc-600 dark:text-zinc-400">
+                  {items.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Contact */}
+        <section id="contact" className="border-t border-zinc-200 py-20 dark:border-zinc-800">
+          <h2 className="text-2xl font-bold tracking-tight">Contact</h2>
+          <p className="mt-4 text-zinc-600 dark:text-zinc-400">
+            Feel free to reach out — I&apos;m always open to interesting
+            conversations and opportunities.
+          </p>
+          <div className="mt-6 flex gap-4">
+            <a
+              href="mailto:hello@filip.dev"
+              className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-medium transition-colors hover:bg-zinc-100 dark:border-zinc-800 dark:hover:bg-zinc-900"
+            >
+              Email
+            </a>
+            {SOCIAL_LINKS.map((link) => (
+              <a
+                key={link.label}
+                href={link.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-medium transition-colors hover:bg-zinc-100 dark:border-zinc-800 dark:hover:bg-zinc-900"
+              >
+                {link.label}
+              </a>
+            ))}
+          </div>
+        </section>
       </main>
+
+      {/* Footer */}
+      <footer className="border-t border-zinc-200 dark:border-zinc-800">
+        <div className="mx-auto max-w-3xl px-6 py-8 text-center text-sm text-zinc-400 dark:text-zinc-600">
+          &copy; {new Date().getFullYear()} Filip. All rights reserved.
+        </div>
+      </footer>
     </div>
   );
 }
