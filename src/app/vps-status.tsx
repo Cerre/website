@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 
-const API_URL = "http://136.244.53.103";
+const API_URL = "/api";
 
 interface Status {
   status: string;
