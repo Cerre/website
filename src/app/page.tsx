@@ -1,4 +1,5 @@
 import { TypingEffect } from "./typing-effect";
+import { VpsStatus } from "./vps-status";
 
 const NAV_LINKS = [
   { label: "About", href: "#about" },
@@ -104,6 +105,17 @@ export default function Home() {
             I&apos;m not writing code, you can find me exploring new
             technologies or contributing to open-source projects.
           </p>
+        </section>
+
+        {/* Live Status */}
+        <section id="status" className="py-20">
+          <h2 className="text-2xl font-bold tracking-tight">Live Status</h2>
+          <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+            Fetched in real-time from a FastAPI backend on my VPS.
+          </p>
+          <div className="mt-6">
+            <VpsStatus />
+          </div>
         </section>
 
         {/* Projects */}
