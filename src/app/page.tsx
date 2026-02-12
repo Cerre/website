@@ -1,3 +1,5 @@
+import { TypingEffect } from "./typing-effect";
+
 const NAV_LINKS = [
   { label: "About", href: "#about" },
   { label: "Projects", href: "#projects" },
@@ -75,8 +77,7 @@ export default function Home() {
             ML &amp; Software Engineer
           </p>
           <p className="mt-4 max-w-lg text-zinc-600 dark:text-zinc-400">
-            Building intelligent systems at the intersection of machine learning
-            and software engineering.
+            <TypingEffect text="Building intelligent systems at the intersection of machine learning and software engineering." />
           </p>
           <div className="mt-8 flex gap-4">
             {SOCIAL_LINKS.map((link) => (
