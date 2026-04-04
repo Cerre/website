@@ -1,5 +1,5 @@
 import { TypingEffect } from "./typing-effect";
-import { VpsStatus } from "./vps-status";
+import { SpotifyNowPlaying } from "./vps-status";
 
 const SOCIAL_LINKS = [
   { label: "GitHub", href: "https://github.com/Cerre" },
@@ -39,11 +39,9 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Live Status */}
+        {/* Spotify */}
         <section className="py-20">
-          <div className="mt-6">
-            <VpsStatus />
-          </div>
+          <SpotifyNowPlaying />
         </section>
       </main>
 
