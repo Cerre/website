@@ -11,28 +11,64 @@ interface SpotifyTrack {
   url: string | null;
 }
 
+const POLL_MS = 30_000;
+
+function safeSpotifyUrl(url: string | null): string | undefined {
+  if (!url) return undefined;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:") return undefined;
+    if (parsed.hostname !== "open.spotify.com") return undefined;
+    return parsed.toString();
+  } catch {
+    return undefined;
+  }
+}
+
+function safeAlbumArt(url: string | null): string | undefined {
+  if (!url) return undefined;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:") return undefined;
+    if (!parsed.hostname.endsWith(".scdn.co")) return undefined;
+    return parsed.toString();
+  } catch {
+    return undefined;
+  }
+}
+
 export function SpotifyNowPlaying() {
   const [spotify, setSpotify] = useState<SpotifyTrack | null>(null);
 
   useEffect(() => {
-    fetch("/api/spotify/now-playing")
-      .then((r) => r.json())
-      .then(setSpotify)
-      .catch(() => {});
-  }, []);
+    const controller = new AbortController();
 
-  // Poll every 30s
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fetch("/api/spotify/now-playing")
-        .then((r) => r.json())
-        .then(setSpotify)
-        .catch(() => {});
-    }, 30_000);
-    return () => clearInterval(interval);
+    const load = async () => {
+      try {
+        const r = await fetch("/api/spotify/now-playing", {
+          signal: controller.signal,
+        });
+        if (!r.ok) return;
+        const data = (await r.json()) as SpotifyTrack;
+        setSpotify(data);
+      } catch {
+        // ignore aborts and network errors
+      }
+    };
+
+    load();
+    const interval = setInterval(load, POLL_MS);
+
+    return () => {
+      controller.abort();
+      clearInterval(interval);
+    };
   }, []);
 
   if (!spotify || !spotify.track) return null;
+
+  const trackUrl = safeSpotifyUrl(spotify.url);
+  const artUrl = safeAlbumArt(spotify.album_art);
 
   return (
     <div className="rounded-xl border border-zinc-200 p-6 dark:border-zinc-800">
@@ -40,14 +76,14 @@ export function SpotifyNowPlaying() {
         {spotify.is_playing ? "Now playing" : "Last played"}
       </dt>
       <a
-        href={spotify.url ?? undefined}
+        href={trackUrl}
         target="_blank"
         rel="noopener noreferrer"
         className="flex items-center gap-4 group"
       >
-        {spotify.album_art && (
+        {artUrl && (
           <img
-            src={spotify.album_art}
+            src={artUrl}
             alt={spotify.album ?? "Album art"}
             width={48}
             height={48}

@@ -17,19 +17,24 @@ export function TypingEffect({
   const [showCursor, setShowCursor] = useState(true);
 
   useEffect(() => {
+    let interval: ReturnType<typeof setInterval> | undefined;
+    let cursorTimeout: ReturnType<typeof setTimeout> | undefined;
     const timeout = setTimeout(() => {
       let i = 0;
-      const interval = setInterval(() => {
+      interval = setInterval(() => {
         setDisplayed(text.slice(0, i + 1));
         i++;
         if (i >= text.length) {
-          clearInterval(interval);
-          setTimeout(() => setShowCursor(false), 1500);
+          if (interval) clearInterval(interval);
+          cursorTimeout = setTimeout(() => setShowCursor(false), 1500);
         }
       }, speed);
-      return () => clearInterval(interval);
     }, delay);
-    return () => clearTimeout(timeout);
+    return () => {
+      clearTimeout(timeout);
+      if (interval) clearInterval(interval);
+      if (cursorTimeout) clearTimeout(cursorTimeout);
+    };
   }, [text, speed, delay]);
 
   return (
