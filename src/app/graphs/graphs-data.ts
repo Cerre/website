@@ -36,6 +36,16 @@ export const GRAPHS: Graph[] = [
     ],
   },
   {
+    id: "throw",
+    title: "How hard they come back",
+    view: { xMin: 0, xMax: 10, yMin: 0, yMax: 10 },
+    layers: [
+      { step: 0, type: "axes" },
+      { step: 1, type: "line", points: [[0, 0], [10, 10]] as [number, number][] },
+      { step: 2, type: "axisLabels", xLabel: "How hard you throw them", yLabel: "How hard they come back" },
+    ],
+  },
+  {
     id: "growth",
     title: "Linear vs exponential",
     view: { xMin: 0, xMax: 5, yMin: 0, yMax: 25 },
