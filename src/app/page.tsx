@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { TypingEffect } from "./typing-effect";
 import { SpotifyNowPlaying } from "./vps-status";
 
@@ -5,6 +6,9 @@ const SOCIAL_LINKS = [
   { label: "GitHub", href: "https://github.com/Cerre" },
   { label: "LinkedIn", href: "https://www.linkedin.com/in/filip-cederquist-8b395819a/" },
 ];
+
+const linkClass =
+  "rounded-full border border-zinc-200 px-4 py-2 text-sm font-medium transition-colors hover:bg-zinc-100 dark:border-zinc-800 dark:hover:bg-zinc-900";
 
 export default function Home() {
   return (
@@ -18,24 +22,24 @@ export default function Home() {
           <p className="mt-4 max-w-lg text-zinc-600 dark:text-zinc-400">
             <TypingEffect text="I like puzzles, math, and games. This site is a living playground for whatever I'm tinkering with." />
           </p>
-          <div className="mt-8 flex gap-4">
+          <div className="mt-8 flex flex-wrap gap-4">
             {SOCIAL_LINKS.map((link) => (
               <a
                 key={link.label}
                 href={link.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-medium transition-colors hover:bg-zinc-100 dark:border-zinc-800 dark:hover:bg-zinc-900"
+                className={linkClass}
               >
                 {link.label}
               </a>
             ))}
-            <a
-              href="mailto:cederquist94@hotmail.com"
-              className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-medium transition-colors hover:bg-zinc-100 dark:border-zinc-800 dark:hover:bg-zinc-900"
-            >
+            <a href="mailto:cederquist94@hotmail.com" className={linkClass}>
               Email
             </a>
+            <Link href="/graphs" className={linkClass}>
+              Graphs
+            </Link>
           </div>
         </section>
 
