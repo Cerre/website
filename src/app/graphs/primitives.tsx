@@ -60,6 +60,15 @@ const COLORS: Record<string, string> = {
   amber: "#f59e0b",
 };
 
+export function Background({ color }: { color: string }) {
+  const { dim } = useChart();
+  const x = dim.padding.left;
+  const y = dim.padding.top;
+  const w = dim.width - dim.padding.left - dim.padding.right;
+  const h = dim.height - dim.padding.top - dim.padding.bottom;
+  return <rect x={x} y={y} width={w} height={h} fill={color} />;
+}
+
 export function Frame() {
   const { dim } = useChart();
   const x = dim.padding.left;

@@ -3,6 +3,7 @@
 import type { Graph } from "./graphs-data";
 import {
   ChartProvider,
+  Background,
   Frame,
   Axes,
   AxisLabels,
@@ -45,6 +46,8 @@ export function GraphRenderer({ graph, step }: { graph: Graph; step: number }) {
         <ChartProvider view={graph.view} dim={DIM}>
           {visible.map((layer, i) => {
             switch (layer.type) {
+              case "background":
+                return <Background key={i} color={layer.color} />;
               case "frame":
                 return <Frame key={i} />;
               case "axes":

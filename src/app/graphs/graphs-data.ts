@@ -2,6 +2,7 @@ export type View = { xMin: number; xMax: number; yMin: number; yMax: number };
 
 export type Layer =
   | { step: number; type: "frame" }
+  | { step: number; type: "background"; color: string }
   | { step: number; type: "axes" }
   | { step: number; type: "axisLabels"; xLabel: string; yLabel: string }
   | { step: number; type: "title"; text: string }
@@ -40,8 +41,9 @@ export const GRAPHS: Graph[] = [
     title: "How hard they come back",
     view: { xMin: 0, xMax: 10, yMin: 0, yMax: 10 },
     layers: [
+      { step: 0, type: "background", color: "#F4F3EE" },
       { step: 0, type: "axes" },
-      { step: 1, type: "line", points: [[0, 0], [10, 10]] as [number, number][] },
+      { step: 1, type: "line", points: [[0, 0], [10, 10]] as [number, number][], color: "#C15F3C" },
       { step: 2, type: "axisLabels", xLabel: "How hard you throw them", yLabel: "How hard they come back" },
     ],
   },
