@@ -40,6 +40,9 @@ export default function Home() {
             <Link href="/graphs" className={linkClass}>
               Graphs
             </Link>
+            <Link href="/madrid" className={linkClass}>
+              Madrid
+            </Link>
           </div>
         </section>
 
