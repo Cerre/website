@@ -67,6 +67,8 @@ export default function GraphsPage() {
           </span>
         </div>
 
+        <p className="mt-2 text-sm text-zinc-500">Hello Gabriel!</p>
+
         <div className="mt-6 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800 sm:p-6">
           <GraphRenderer graph={graph} step={step} />
 
