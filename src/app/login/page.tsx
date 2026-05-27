@@ -76,9 +76,9 @@ function LoginPageInner() {
       setCookie("oauth_state", state, 300);
 
       const redirectUri =
-        typeof window !== "undefined"
-          ? `${window.location.origin}/api/auth/callback`
-          : "";
+        process.env.NEXT_PUBLIC_SITE_URL
+          ? `${process.env.NEXT_PUBLIC_SITE_URL}/api/auth/callback`
+          : `${window.location.origin}/api/auth/callback`;
 
       const params = new URLSearchParams({
         client_id: GOOGLE_CLIENT_ID,
