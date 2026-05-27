@@ -50,9 +50,12 @@ export async function GET(request: NextRequest) {
     return errorResponse(request, "PKCE verifier expired", 400);
   }
 
-  // Build the redirect_uri (use x-forwarded-proto to get the real protocol behind Vercel's proxy)
-  const proto = request.headers.get("x-forwarded-proto") ?? "https";
-  const redirectUri = `${proto}://${request.nextUrl.host}/api/auth/callback`;
+  // Build the redirect_uri — must match exactly what was sent in the auth request.
+  // Use NEXT_PUBLIC_SITE_URL in production (same env var the login page uses),
+  // otherwise derive from the request.
+  const redirectUri = process.env.NEXT_PUBLIC_SITE_URL
+    ? `${process.env.NEXT_PUBLIC_SITE_URL}/api/auth/callback`
+    : `${request.headers.get("x-forwarded-proto") ?? "https"}://${request.nextUrl.host}/api/auth/callback`;
 
   // Exchange the code with the backend
   let backendRes: Response;
