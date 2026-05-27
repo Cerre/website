@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
     if (!vpsUrl) return [];
     return [
       { source: "/api/spotify/:path*", destination: `${vpsUrl}/spotify/:path*` },
+      { source: "/api/auth/me", destination: `${vpsUrl}/auth/me` },
     ];
   },
 };

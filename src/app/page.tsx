@@ -51,7 +51,8 @@ export default function Home() {
 
       <footer className="border-t border-zinc-200 dark:border-zinc-800">
         <div className="mx-auto max-w-3xl px-6 py-8 text-center text-sm text-zinc-400 dark:text-zinc-600">
-          &copy; {new Date().getFullYear()} Filip
+          &copy; {new Date().getFullYear()} Filip ·{' '}
+            <Link href="/admin" className="hover:text-zinc-500">Admin</Link>
         </div>
       </footer>
     </div>
