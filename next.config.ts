@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
     return [
       { source: "/api/spotify/:path*", destination: `${vpsUrl}/spotify/:path*` },
       { source: "/api/auth/me", destination: `${vpsUrl}/auth/me` },
+      { source: "/api/pi/:path*", destination: `${vpsUrl}/pi/:path*` },
     ];
   },
 };

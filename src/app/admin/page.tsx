@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import PiSearch from "./pi-search";
 
 interface User {
   email: string;
@@ -94,19 +95,8 @@ export default function AdminPage() {
           Welcome back, {user.name ?? user.email.split("@")[0]}.
         </p>
 
-        <div className="mt-10 grid gap-6 sm:grid-cols-2">
-          <div className="rounded-2xl border border-zinc-200 p-6 dark:border-zinc-800">
-            <h2 className="text-sm font-semibold">Personal projects</h2>
-            <p className="mt-2 text-sm text-zinc-500">
-              Coming soon — track your projects and Raspberry Pi updates.
-            </p>
-          </div>
-          <div className="rounded-2xl border border-zinc-200 p-6 dark:border-zinc-800">
-            <h2 className="text-sm font-semibold">Chat</h2>
-            <p className="mt-2 text-sm text-zinc-500">
-              Coming soon — talk to your own data.
-            </p>
-          </div>
+        <div className="mt-10">
+          <PiSearch />
         </div>
       </main>
     </div>
