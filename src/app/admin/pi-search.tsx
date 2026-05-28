@@ -8,7 +8,6 @@ interface SearchResult {
   start_seconds: number;
   snippet: string;
   score: number;
-  url: string;
 }
 
 type Status = "idle" | "loading" | "ready" | "unavailable" | "error";
@@ -18,6 +17,11 @@ function formatTimestamp(seconds: number): string {
   const m = Math.floor(s / 60);
   const rem = s % 60;
   return `${m}:${rem.toString().padStart(2, "0")}`;
+}
+
+function youtubeUrl(videoId: string, startSeconds: number): string {
+  const t = Math.max(0, Math.floor(startSeconds));
+  return `https://youtube.com/watch?v=${videoId}&t=${t}s`;
 }
 
 export default function PiSearch() {
@@ -98,7 +102,7 @@ export default function PiSearch() {
             {results.map((r, i) => (
               <li key={`${r.video_id}-${r.start_seconds}-${i}`}>
                 <a
-                  href={r.url}
+                  href={youtubeUrl(r.video_id, r.start_seconds)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="block rounded-xl border border-zinc-200 p-4 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
