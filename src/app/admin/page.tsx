@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import PiSearch from "./pi-search";
+import ChessConsole from "./chess-console";
 
 interface User {
   email: string;
@@ -96,7 +96,7 @@ export default function AdminPage() {
         </p>
 
         <div className="mt-10">
-          <PiSearch />
+          <ChessConsole />
         </div>
       </main>
     </div>
