@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import ChessConsole from "./chess-console";
+import OpsDashboard from "../ops-dashboard";
 
 interface User {
   email: string;
@@ -15,7 +15,7 @@ async function logout() {
   await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
 }
 
-export default function AdminPage() {
+export default function OpsPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -29,8 +29,7 @@ export default function AdminPage() {
           router.replace("/login");
           return;
         }
-        const data = await res.json();
-        setUser(data);
+        setUser(await res.json());
       } catch {
         await logout();
         router.replace("/login");
@@ -56,7 +55,6 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {/* Header */}
       <header className="border-b border-zinc-200 dark:border-zinc-800">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
@@ -73,16 +71,10 @@ export default function AdminPage() {
           </div>
           <div className="flex items-center gap-4">
             <Link
-              href="/admin/ops"
+              href="/admin"
               className="text-sm text-zinc-500 transition-colors hover:text-zinc-900 dark:hover:text-zinc-100"
             >
-              Ops
-            </Link>
-            <Link
-              href="/"
-              className="text-sm text-zinc-500 transition-colors hover:text-zinc-900 dark:hover:text-zinc-100"
-            >
-              Home
+              Dashboard
             </Link>
             <button
               onClick={handleSignOut}
@@ -94,15 +86,14 @@ export default function AdminPage() {
         </div>
       </header>
 
-      {/* Dashboard */}
       <main className="mx-auto max-w-5xl px-6 py-12">
-        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Ops</h1>
         <p className="mt-2 text-zinc-500">
-          Welcome back, {user.name ?? user.email.split("@")[0]}.
+          chess-search ingestion run ledger and health.
         </p>
 
         <div className="mt-10">
-          <ChessConsole />
+          <OpsDashboard />
         </div>
       </main>
     </div>
