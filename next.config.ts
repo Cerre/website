@@ -9,6 +9,7 @@ const nextConfig: NextConfig = {
       { source: "/api/spotify/:path*", destination: `${vpsUrl}/spotify/:path*` },
       { source: "/api/auth/me", destination: `${vpsUrl}/auth/me` },
       { source: "/api/pi/:path*", destination: `${vpsUrl}/pi/:path*` },
+      { source: "/api/stream/:path*", destination: `${vpsUrl}/stream/:path*` },
     ];
   },
 };

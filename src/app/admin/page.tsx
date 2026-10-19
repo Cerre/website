@@ -79,6 +79,12 @@ export default function AdminPage() {
               Ops
             </Link>
             <Link
+              href="/admin/stream"
+              className="text-sm text-zinc-500 transition-colors hover:text-zinc-900 dark:hover:text-zinc-100"
+            >
+              Stream
+            </Link>
+            <Link
               href="/"
               className="text-sm text-zinc-500 transition-colors hover:text-zinc-900 dark:hover:text-zinc-100"
             >
