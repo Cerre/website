@@ -147,9 +147,13 @@ export default function StreamBoard() {
   const peers = useRef<Partial<Record<Source, { pc: RTCPeerConnection; stream: MediaStream }>>>({});
   const pad = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
-  const moveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const latest = useRef(box);
-  latest.current = box;
+  const moving = useRef(false); // a move is on its way to the mixer
+  const moveAgain = useRef(false); // the box moved again meanwhile
+  const latest = useRef(box); // the box right now, for code that runs between renders
+  const place = (b: Box) => {
+    latest.current = b;
+    setBox(b);
+  };
 
   // The layout lives on the server and outlasts this page: start from it
   useEffect(() => {
@@ -157,7 +161,7 @@ export default function StreamBoard() {
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`Could not load the layout (${res.status})`))))
       .then((l: Layout) => {
         setLayout(l);
-        setBox({ x: l.x, y: l.y, w: l.w });
+        place({ x: l.x, y: l.y, w: l.w });
       })
       .catch((e) => setError(e.message));
   }, []);
@@ -167,7 +171,8 @@ export default function StreamBoard() {
     try {
       const l = await command(cmd);
       setLayout(l);
-      if (!dragging.current) setBox({ x: l.x, y: l.y, w: l.w });
+      setError((e) => (e.startsWith("The mixer") ? "" : e)); // it answers again
+      if (!dragging.current) place({ x: l.x, y: l.y, w: l.w });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -205,20 +210,35 @@ export default function StreamBoard() {
 
   const resize = (w: number) => {
     const b = clamp({ ...latest.current, w });
-    setBox(b);
+    place(b);
     send(`size ${b.w}`);
   };
 
-  // Drag: center the small picture on the pointer, inside the frame. Send at most one move per 50 ms.
+  /** Send the box's place, one move at a time: while one is on its way, later positions
+   *  collapse into a single move of wherever the box is when it's back. A slow link then
+   *  means fewer moves, not a growing queue. */
+  const sendMove = async () => {
+    if (moving.current) {
+      moveAgain.current = true;
+      return;
+    }
+    moving.current = true;
+    do {
+      moveAgain.current = false;
+      // Read the place only now, after the previous move came back
+      await send(`move ${latest.current.x} ${latest.current.y}`);
+    } while (moveAgain.current);
+    moving.current = false;
+  };
+
+  // Drag: center the small picture on the pointer, inside the frame.
   const moveTo = (e: React.PointerEvent) => {
     const r = pad.current!.getBoundingClientRect();
     const s = W / r.width;
     const { w } = latest.current;
-    setBox(clamp({ x: (e.clientX - r.left) * s - w / 2, y: (e.clientY - r.top) * s - (w * 9) / 32, w }));
-    moveTimer.current ??= setTimeout(() => {
-      send(`move ${latest.current.x} ${latest.current.y}`);
-      moveTimer.current = null;
-    }, 50);
+    const b = clamp({ x: (e.clientX - r.left) * s - w / 2, y: (e.clientY - r.top) * s - (w * 9) / 32, w });
+    place(b);
+    sendMove();
   };
 
   const live = sending.screen || sending.cam;
