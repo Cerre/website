@@ -1,89 +1,28 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-
-const STREAM_URL = process.env.NEXT_PUBLIC_STREAM_URL ?? "https://stream.filipcederquist.com";
-
-// The mixer's frame is 1280x720; the small picture's place is given in those pixels.
-const W = 1280;
-const H = 720;
-const MIN_W = 80;
-
-type Source = "screen" | "cam";
-
-/** The mixer's layout, as the control service keeps it. */
-type Layout = { swap: boolean; screen: boolean; cam: boolean; mic: boolean; x: number; y: number; w: number };
-type Box = Pick<Layout, "x" | "y" | "w">;
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { whip, type Session } from "@/lib/webrtc";
+import { clamp, DEFAULT_LAYOUT, Mixer, W, type Layout, type Source } from "./stream/mixer";
+import { startTestSource } from "./stream/test-source";
 
 const button =
   "rounded-full border border-zinc-200 px-4 py-1.5 text-sm font-medium transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-800 dark:hover:bg-zinc-900";
 
-/** Keep the small picture inside the frame (control does the same). */
-function clamp({ x, y, w }: Box): Box {
-  w = Math.min(Math.max(Math.round(w), MIN_W), W);
-  return {
-    w,
-    x: Math.min(Math.max(Math.round(x), 0), W - w),
-    y: Math.min(Math.max(Math.round(y), 0), H - Math.floor((w * 9) / 16)),
-  };
-}
+/** Output sizes and the most the encoder may send for each. */
+const RESOLUTIONS = { 1080: { width: 1920, bitrate: 4_500_000 }, 720: { width: 1280, bitrate: 2_500_000 } };
+type Resolution = keyof typeof RESOLUTIONS;
 
-/** Layout command for the mixer: "swap", "mic off", "size 360", "move 900 500", ... Returns the new layout. */
-async function command(cmd: string): Promise<Layout> {
-  const res = await fetch("/api/stream/command", {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ cmd }),
-  });
-  if (!res.ok) throw new Error(`The mixer refused "${cmd}" (${res.status})`);
-  return res.json();
-}
-
-/** Send a stream to the media server with WHIP: one POST with our offer, the answer comes back. */
-async function publish(path: Source, stream: MediaStream): Promise<RTCPeerConnection> {
-  const tokenRes = await fetch("/api/stream/token", { method: "POST", credentials: "include" });
-  if (!tokenRes.ok) throw new Error(`Could not get a send token (${tokenRes.status})`);
-  const { token } = await tokenRes.json();
-
-  const pc = new RTCPeerConnection();
-  const video = pc.addTransceiver(stream.getVideoTracks()[0], { direction: "sendonly" });
-  // The mixer reads H.264 only, so offer nothing else
-  const codecs = RTCRtpReceiver.getCapabilities("video")?.codecs ?? [];
-  video.setCodecPreferences(codecs.filter((c) => c.mimeType === "video/H264"));
-  // The mic, if any, goes along as a second track
-  stream.getAudioTracks().forEach((t) => pc.addTransceiver(t, { direction: "sendonly" }));
-
-  await pc.setLocalDescription(await pc.createOffer());
-  // Wait for our network addresses so they all go in the one offer
-  await new Promise<void>((done) => {
-    if (pc.iceGatheringState === "complete") return done();
-    pc.onicegatheringstatechange = () => pc.iceGatheringState === "complete" && done();
-    setTimeout(done, 2000);
-  });
-
-  const res = await fetch(`${STREAM_URL}/${path}/whip`, {
-    method: "POST",
-    headers: { "Content-Type": "application/sdp", Authorization: `Bearer ${token}` },
-    body: pc.localDescription!.sdp,
-  });
-  if (!res.ok) {
-    pc.close();
-    throw new Error(`The media server refused ${path} (${res.status})`);
-  }
-  await pc.setRemoteDescription({ type: "answer", sdp: await res.text() });
-  return pc;
-}
-
-const video = { width: 1280, height: 720, frameRate: 30 };
 const capture: Record<Source, () => Promise<MediaStream>> = {
-  // 720p: what the mixer outputs anyway, and much lighter for it than 1080p
-  screen: () => navigator.mediaDevices.getDisplayMedia({ video }),
+  // As sharp as the screen allows up to 1080p, so text stays readable
+  screen: () =>
+    navigator.mediaDevices.getDisplayMedia({ video: { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: 30 } }),
   // Camera plus mic; without a mic (or if it's refused), the camera alone
-  cam: () =>
-    navigator.mediaDevices
+  cam: () => {
+    const video = { width: 1280, height: 720, frameRate: 30 };
+    return navigator.mediaDevices
       .getUserMedia({ video, audio: { echoCancellation: true, noiseSuppression: true } })
-      .catch(() => navigator.mediaDevices.getUserMedia({ video })),
+      .catch(() => navigator.mediaDevices.getUserMedia({ video }));
+  },
 };
 
 /** An on/off switch that says which it is: a dot and "on"/"off", filled while on. */
@@ -137,132 +76,198 @@ function MicMeter({ stream }: { stream: MediaStream }) {
 }
 
 export default function StreamBoard() {
-  const [sending, setSending] = useState<Record<Source, boolean>>({ screen: false, cam: false });
-  const [micStream, setMicStream] = useState<MediaStream | null>(null);
-  const [layout, setLayout] = useState<Layout | null>(null);
-  const [previewSound, setPreviewSound] = useState(false);
-  const [error, setError] = useState("");
-  // Our copy of the small picture's place, so dragging doesn't wait for the server
-  const [box, setBox] = useState<Box>({ x: 940, y: 520, w: 320 });
-  const peers = useRef<Partial<Record<Source, { pc: RTCPeerConnection; stream: MediaStream }>>>({});
+  const mixer = useRef<Mixer | null>(null);
+  const captured = useRef<Partial<Record<Source, MediaStream>>>({});
+  const session = useRef<Session | null>(null);
+  const stopTest = useRef<(() => void) | null>(null);
+  const preview = useRef<HTMLDivElement>(null);
   const pad = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
-  const moving = useRef(false); // a move is on its way to the mixer
-  const moveAgain = useRef(false); // the box moved again meanwhile
-  const latest = useRef(box); // the box right now, for code that runs between renders
-  const place = (b: Box) => {
-    latest.current = b;
-    setBox(b);
-  };
 
-  // The layout lives on the server and outlasts this page: start from it
+  const [sharing, setSharing] = useState<Record<Source, boolean>>({ screen: false, cam: false });
+  const [test, setTest] = useState(false);
+  const [micStream, setMicStream] = useState<MediaStream | null>(null);
+  const [layout, setLayout] = useState<Layout>(DEFAULT_LAYOUT);
+  // The test source: always in development, in production with ?test=1
+  const testAllowed = useSyncExternalStore(
+    () => () => {},
+    () => process.env.NODE_ENV === "development" || new URLSearchParams(window.location.search).has("test"),
+    () => false
+  );
+  const [resolution, setResolution] = useState<Resolution>(1080);
+  const [live, setLive] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [previewSound, setPreviewSound] = useState(false);
+  const [slow, setSlow] = useState(false);
+  const [error, setError] = useState("");
+
+  // One mixer for the page's life; its canvas is the preview
   useEffect(() => {
-    fetch("/api/stream/state", { credentials: "include" })
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`Could not load the layout (${res.status})`))))
-      .then((l: Layout) => {
-        setLayout(l);
-        place({ x: l.x, y: l.y, w: l.w });
-      })
-      .catch((e) => setError(e.message));
+    const m = new Mixer(RESOLUTIONS[1080].width);
+    mixer.current = m;
+    m.canvas.className = "absolute inset-0 h-full w-full";
+    preview.current!.prepend(m.canvas);
+    const streams = captured.current;
+    return () => {
+      session.current?.stop();
+      stopTest.current?.();
+      Object.values(streams).forEach((s) => s?.getTracks().forEach((t) => t.stop()));
+      m.canvas.remove();
+      m.close();
+    };
   }, []);
 
-  /** Send a command; the reply is the whole layout. The box is ours while dragging. */
-  const send = async (cmd: string) => {
-    try {
-      const l = await command(cmd);
-      setLayout(l);
-      setError((e) => (e.startsWith("The mixer") ? "" : e)); // it answers again
-      if (!dragging.current) place({ x: l.x, y: l.y, w: l.w });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+  // Watch the frame rate while live: a background tab may slow the browser down
+  useEffect(() => {
+    if (!live) return;
+    const id = setInterval(() => setSlow((mixer.current?.fps ?? 30) < 20), 1000);
+    return () => clearInterval(id);
+  }, [live]);
+
+  /** Change the layout; it takes effect on the next frame. */
+  const change = (l: Partial<Layout>) => {
+    mixer.current!.setLayout(l);
+    setLayout(mixer.current!.layout);
+  };
+
+  const stopSharing = (source: Source) => {
+    captured.current[source]?.getTracks().forEach((t) => t.stop());
+    delete captured.current[source];
+    mixer.current!.setSource(source, null);
+    if (source === "cam") {
+      mixer.current!.setMic(null);
+      setMicStream(null);
     }
+    setSharing((s) => ({ ...s, [source]: false }));
   };
 
-  const stop = (source: Source) => {
-    const peer = peers.current[source];
-    if (!peer) return;
-    peer.pc.close();
-    peer.stream.getTracks().forEach((t) => t.stop());
-    delete peers.current[source];
-    setSending((s) => ({ ...s, [source]: false }));
-    if (source === "cam") setMicStream(null);
-  };
-
-  const toggleSend = async (source: Source) => {
-    if (peers.current[source]) return stop(source);
+  const toggleSharing = async (source: Source) => {
+    if (captured.current[source]) return stopSharing(source);
     setError("");
+    mixer.current!.audio.resume(); // the AudioContext may only start after a click
     try {
       const stream = await capture[source]();
       // "Stop sharing" in the browser's own bar
-      stream.getVideoTracks()[0].onended = () => stop(source);
-      peers.current[source] = { pc: await publish(source, stream), stream };
-      setSending((s) => ({ ...s, [source]: true }));
+      stream.getVideoTracks()[0].onended = () => stopSharing(source);
+      const video = document.createElement("video");
+      video.muted = true;
+      video.playsInline = true;
+      video.srcObject = stream;
+      await video.play();
+      captured.current[source] = stream;
+      mixer.current!.setSource(source, video);
       if (source === "cam") {
-        if (stream.getAudioTracks().length) setMicStream(stream);
-        else setError("No mic: the camera is sending without sound");
+        const mic = stream.getAudioTracks();
+        if (mic.length) {
+          mixer.current!.setMic(new MediaStream(mic));
+          setMicStream(stream);
+        } else setError("No mic: the camera is on without sound");
       }
+      setSharing((s) => ({ ...s, [source]: true }));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
   };
 
-  useEffect(() => () => (["screen", "cam"] as Source[]).forEach(stop), []);
-
-  const resize = (w: number) => {
-    const b = clamp({ ...latest.current, w });
-    place(b);
-    send(`size ${b.w}`);
-  };
-
-  /** Send the box's place, one move at a time: while one is on its way, later positions
-   *  collapse into a single move of wherever the box is when it's back. A slow link then
-   *  means fewer moves, not a growing queue. */
-  const sendMove = async () => {
-    if (moving.current) {
-      moveAgain.current = true;
+  const toggleTest = () => {
+    if (stopTest.current) {
+      stopTest.current();
+      stopTest.current = null;
+      setTest(false);
       return;
     }
-    moving.current = true;
-    do {
-      moveAgain.current = false;
-      // Read the place only now, after the previous move came back
-      await send(`move ${latest.current.x} ${latest.current.y}`);
-    } while (moveAgain.current);
-    moving.current = false;
+    (["screen", "cam"] as Source[]).forEach(stopSharing);
+    mixer.current!.audio.resume();
+    stopTest.current = startTestSource(mixer.current!);
+    setTest(true);
   };
 
-  // Drag: center the small picture on the pointer, inside the frame.
+  const goLive = async () => {
+    setError("");
+    setStarting(true);
+    mixer.current!.audio.resume();
+    try {
+      const res = await fetch("/api/stream/token", { method: "POST", credentials: "include" });
+      if (res.status === 409) throw new Error("Already live from another tab or device. End that stream first (after a crash, the old one lingers for about 30 seconds).");
+      if (!res.ok) throw new Error(`Could not get a send token (${res.status})`);
+      const { token } = await res.json();
+      const s = await whip("live", mixer.current!.output, token, RESOLUTIONS[resolution].bitrate);
+      s.pc.onconnectionstatechange = () => {
+        if (s.pc.connectionState === "failed") {
+          s.stop();
+          session.current = null;
+          setLive(false);
+          setError("The connection to the media server was lost. Go live again to continue.");
+        }
+      };
+      session.current = s;
+      setLive(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  const endStream = () => {
+    session.current?.stop();
+    session.current = null;
+    setLive(false);
+  };
+
+  const changeResolution = (r: Resolution) => {
+    mixer.current!.resize(RESOLUTIONS[r].width);
+    setResolution(r);
+  };
+
+  // Drag: center the small picture on the pointer, inside the frame
   const moveTo = (e: React.PointerEvent) => {
     const r = pad.current!.getBoundingClientRect();
     const s = W / r.width;
-    const { w } = latest.current;
-    const b = clamp({ x: (e.clientX - r.left) * s - w / 2, y: (e.clientY - r.top) * s - (w * 9) / 32, w });
-    place(b);
-    sendMove();
+    const w = mixer.current!.layout.w;
+    change(clamp({ x: (e.clientX - r.left) * s - w / 2, y: (e.clientY - r.top) * s - (w * 9) / 32, w }));
   };
+  const resize = (w: number) => change(clamp({ ...layout, w }));
 
-  const live = sending.screen || sending.cam;
+  const anySource = sharing.screen || sharing.cam || test;
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Toggle label="Screen share" on={sending.screen} onClick={() => toggleSend("screen")} />
-        <Toggle label="Camera + mic" on={sending.cam} onClick={() => toggleSend("cam")} />
-        <span className={`ml-auto inline-flex items-center gap-2 text-sm font-medium ${live ? "text-red-500" : "text-zinc-500"}`}>
-          <span className={`h-2 w-2 rounded-full ${live ? "animate-pulse bg-red-500" : "bg-zinc-400"}`} />
-          {live ? "Live" : "Offline"}
+        <Toggle label="Screen share" on={sharing.screen} disabled={test} onClick={() => toggleSharing("screen")} />
+        <Toggle label="Camera + mic" on={sharing.cam} disabled={test} onClick={() => toggleSharing("cam")} />
+        {testAllowed && <Toggle label="Test source" on={test} onClick={toggleTest} />}
+        <span className="ml-auto flex items-center gap-3">
+          <span className={`inline-flex items-center gap-2 text-sm font-medium ${live ? "text-red-500" : "text-zinc-500"}`}>
+            <span className={`h-2 w-2 rounded-full ${live ? "animate-pulse bg-red-500" : "bg-zinc-400"}`} />
+            {live ? "Live" : "Offline"}
+          </span>
+          {live ? (
+            <button className={button} onClick={endStream}>End stream</button>
+          ) : (
+            <button
+              className="rounded-full bg-red-600 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+              disabled={starting || !anySource}
+              onClick={goLive}
+            >
+              {starting ? "Starting…" : "Go live"}
+            </button>
+          )}
         </span>
       </div>
       {error && <p className="text-sm text-red-500">{error}</p>}
+      {live && slow && (
+        <p className="text-sm text-amber-500">
+          The browser is slowing the stream down. Keep this tab visible, in its own window if you work in another.
+        </p>
+      )}
 
-      <div className="relative aspect-video overflow-hidden rounded-lg bg-black">
-        <iframe
-          key={previewSound ? "sound" : "muted"}
-          src={`${STREAM_URL}/live/?controls=false&muted=${!previewSound}&autoplay=true`}
-          allow="autoplay"
-          title="Live preview"
-          className="absolute inset-0 h-full w-full border-0"
-        />
+      <div ref={preview} className="relative aspect-video overflow-hidden rounded-lg bg-black">
+        {!anySource && (
+          <p className="absolute inset-0 flex items-center justify-center text-sm text-zinc-500">
+            Turn on a screen share or the camera to see the preview.
+          </p>
+        )}
         <div
           ref={pad}
           className="absolute inset-0 cursor-grab touch-none"
@@ -273,35 +278,42 @@ export default function StreamBoard() {
           }}
           onPointerMove={(e) => dragging.current && moveTo(e)}
           onPointerUp={() => (dragging.current = false)}
-        >
-          <div
-            className="pointer-events-none absolute border-2 border-dashed border-amber-400"
-            style={{
-              left: `${(box.x / W) * 100}%`,
-              top: `${(box.y / H) * 100}%`,
-              width: `${(box.w / W) * 100}%`,
-              height: `${((box.w * 9) / 16 / H) * 100}%`,
-            }}
-          />
-        </div>
+        />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Toggle label="Screen" on={layout?.screen ?? true} disabled={!layout} onClick={() => send(`screen ${layout?.screen ? "off" : "on"}`)} />
-        <Toggle label="Cam" on={layout?.cam ?? true} disabled={!layout} onClick={() => send(`cam ${layout?.cam ? "off" : "on"}`)} />
-        <Toggle label="Mic" on={layout?.mic ?? true} disabled={!layout} onClick={() => send(`mic ${layout?.mic ? "off" : "on"}`)} />
+        <Toggle label="Screen" on={layout.screen} onClick={() => change({ screen: !layout.screen })} />
+        <Toggle label="Cam" on={layout.cam} onClick={() => change({ cam: !layout.cam })} />
+        <Toggle label="Mic" on={layout.mic} onClick={() => change({ mic: !layout.mic })} />
         {micStream && <MicMeter stream={micStream} />}
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <button className={button} disabled={!layout} onClick={() => send("swap")}>Swap big/small</button>
-        <button className={button} disabled={!layout} onClick={() => resize(box.w - 40)}>Smaller</button>
-        <button className={button} disabled={!layout} onClick={() => resize(box.w + 40)}>Bigger</button>
-        <Toggle label="Preview sound" on={previewSound} onClick={() => setPreviewSound((p) => !p)} />
+        <button className={button} onClick={() => change({ swap: !layout.swap })}>Swap big/small</button>
+        <button className={button} onClick={() => resize(layout.w - 40)}>Smaller</button>
+        <button className={button} onClick={() => resize(layout.w + 40)}>Bigger</button>
+        <Toggle
+          label="Preview sound"
+          on={previewSound}
+          onClick={() => {
+            mixer.current!.setPreviewSound(!previewSound);
+            setPreviewSound(!previewSound);
+          }}
+        />
+        <select
+          className="rounded-full border border-zinc-200 bg-transparent px-3 py-1.5 text-sm dark:border-zinc-800"
+          value={resolution}
+          disabled={live}
+          title={live ? "Change the quality before going live" : "Stream quality"}
+          onChange={(e) => changeResolution(Number(e.target.value) as Resolution)}
+        >
+          <option value={1080}>1080p</option>
+          <option value={720}>720p</option>
+        </select>
       </div>
       <p className="text-sm text-zinc-500">
-        Drag on the video to move the small picture. The yellow box shows where it goes; the video follows about a
-        second later. With only one source on, it fills the frame. Preview sound plays the stream back about a
-        second late, so use headphones while talking.
+        The preview is exactly what viewers get, mixed here in your browser. Drag on it to move the small picture.
+        With only one source on, it fills the frame. Preview sound plays the mix on this computer, so use headphones
+        while talking.
       </p>
     </div>
   );

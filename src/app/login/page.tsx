@@ -145,6 +145,17 @@ function LoginPageInner() {
           <p className="mt-6 text-sm text-zinc-400">Loading sign-in...</p>
         )}
 
+        {process.env.NODE_ENV === "development" && (
+          <p className="mt-4">
+            <a
+              href="/api/auth/dev-login"
+              className="text-sm text-zinc-500 underline transition-colors hover:text-zinc-900 dark:hover:text-zinc-100"
+            >
+              Dev sign-in (local stack)
+            </a>
+          </p>
+        )}
+
         <p className="mt-8">
           <Link
             href="/"

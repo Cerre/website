@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-
-const STREAM_URL = process.env.NEXT_PUBLIC_STREAM_URL ?? "https://stream.filipcederquist.com";
+import LivePlayer from "./live-player";
 
 export const metadata: Metadata = {
   title: "Live",
@@ -20,16 +19,10 @@ export default function LivePage() {
         </Link>
         <h1 className="mt-6 text-2xl font-bold tracking-tight">Live</h1>
         <p className="mt-2 text-zinc-500">
-          Screen and camera, live. If the player says there&apos;s no stream, I&apos;m not live right now.
+          Screen and camera, live.
         </p>
-        <div className="mt-8 aspect-video overflow-hidden rounded-lg bg-black">
-          <iframe
-            src={`${STREAM_URL}/live/`}
-            allow="autoplay; fullscreen"
-            allowFullScreen
-            title="Live stream"
-            className="h-full w-full border-0"
-          />
+        <div className="mt-8">
+          <LivePlayer />
         </div>
       </main>
     </div>
