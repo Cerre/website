@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { whep, type Session } from "@/lib/webrtc";
-import { grayPixels, readBox, MAX_PIXELS, MIN_SIDE, type Box } from "@/lib/ocr";
-import LinksPanel from "./links-panel";
+import { copyWhenReady, grayPixels, readBox, MAX_PIXELS, MIN_SIDE, type Box } from "@/lib/ocr";
 
 const RETRY_MS = 3000;
 const SUSPEND_AFTER_MS = 60_000; // a long pause stops downloading the stream
@@ -152,7 +151,9 @@ export default function LivePlayer() {
     const id = ++readId.current;
     setRead({ state: "reading" });
     setCopied(false);
-    readBox(grayPixels(frame.current!, b), b.w, b.h).then(
+    const reading = readBox(grayPixels(frame.current!, b), b.w, b.h);
+    copyWhenReady(reading).then((ok) => id === readId.current && setCopied(ok));
+    reading.then(
       (text) => id === readId.current && setRead({ state: "done", text }),
       (e: Error) => id === readId.current && setRead({ state: "error", message: e.message }),
     );
@@ -161,7 +162,6 @@ export default function LivePlayer() {
   const copy = async (text: string) => {
     await navigator.clipboard.writeText(text);
     setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
   };
 
   const pct = (v: number, of: number) => `${(v / of) * 100}%`;
@@ -211,24 +211,26 @@ export default function LivePlayer() {
         )}
         {playing && !paused && muted && (
           <button onClick={() => setMuted(false)} className={`${overlayButton} bottom-4 left-4`}>
-            🔇 Tap to unmute
+            Tap to unmute
           </button>
         )}
         {playing && hasFrame && !paused && (
           <button onClick={pause} className={`${overlayButton} bottom-4 right-4`}>
-            ⏸ Pause to copy text
+            Pause to copy text
           </button>
         )}
         {paused && (
           <button onClick={resume} className={`${overlayButton} top-4 right-4`}>
-            ▶ Back to live
+            Back to live
           </button>
         )}
       </div>
 
       {paused && (
         <div className="mt-3 rounded-lg border border-zinc-200 p-3 text-sm dark:border-zinc-800">
-          {!read && <p className="text-zinc-500">Drag a box over text to copy it. Esc goes back to live.</p>}
+          {!read && (
+            <p className="text-zinc-500">Drag a box over text to copy it to your clipboard. Esc goes back to live.</p>
+          )}
           {read?.state === "reading" && <p className="text-zinc-500">Reading…</p>}
           {read?.state === "error" && <p className="text-amber-600 dark:text-amber-400">{read.message}</p>}
           {read?.state === "done" && (
@@ -236,7 +238,10 @@ export default function LivePlayer() {
               <textarea
                 aria-label="Text from the box"
                 value={read.text}
-                onChange={(e) => setRead({ state: "done", text: e.target.value })}
+                onChange={(e) => {
+                  setRead({ state: "done", text: e.target.value });
+                  setCopied(false); // the clipboard has the text as it was read
+                }}
                 rows={Math.min(8, Math.max(1, read.text.split("\n").length))}
                 className="w-full resize-y rounded border border-zinc-300 bg-transparent p-2 font-mono text-base sm:text-sm dark:border-zinc-700"
                 placeholder="No text found in that box."
@@ -252,8 +257,6 @@ export default function LivePlayer() {
           )}
         </div>
       )}
-
-      <LinksPanel active={playing || paused} />
     </div>
   );
 }

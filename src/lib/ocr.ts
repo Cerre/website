@@ -42,9 +42,20 @@ export async function readBox(pixels: Uint8Array, w: number, h: number): Promise
   throw new Error(MESSAGES[res.status] ?? (typeof detail === "string" ? `${detail}.` : "Something went wrong."));
 }
 
-/** Website links seen on screen during the current stream, newest first. */
-export async function fetchLinks(): Promise<string[]> {
-  const res = await fetch(`${API_URL}/stream/links`);
-  if (!res.ok) return [];
-  return (await res.json()).links;
+/** Copy the box's text once it arrives; true if it reached the clipboard.
+ *  Call it while handling the drag: browsers only allow clipboard writes during a user action,
+ *  so the write starts now with the text still on its way. An empty or failed read rejects
+ *  it and leaves the clipboard alone. */
+export async function copyWhenReady(text: Promise<string>): Promise<boolean> {
+  const blob = text.then((t) => (t ? new Blob([t], { type: "text/plain" }) : Promise.reject(new Error("nothing to copy"))));
+  blob.catch(() => {}); // handled through the clipboard write, or below
+  try {
+    await navigator.clipboard.write([new ClipboardItem({ "text/plain": blob })]);
+    return true;
+  } catch {
+    // No ClipboardItem with a pending value here; a plain write may still be allowed
+    const t = await text.catch(() => "");
+    if (!t) return false;
+    return navigator.clipboard.writeText(t).then(() => true, () => false);
+  }
 }
