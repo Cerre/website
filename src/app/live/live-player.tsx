@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { whep, type Session } from "@/lib/webrtc";
 import { copyWhenReady, grayPixels, readBox, MAX_PIXELS, MIN_SIDE, type Box } from "@/lib/ocr";
 
@@ -10,6 +10,27 @@ const SUSPEND_AFTER_MS = 60_000; // a long pause stops downloading the stream
 type Read = { state: "reading" } | { state: "done"; text: string } | { state: "error"; message: string };
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+let fixedVolume: boolean | undefined;
+/** iOS ignores `video.volume` (the device's buttons set it), so only sound on/off works there. */
+const volumeIsFixed = () => {
+  if (fixedVolume === undefined) {
+    const probe = document.createElement("video");
+    probe.volume = 0.5;
+    fixedVolume = probe.volume !== 0.5;
+  }
+  return fixedVolume;
+};
+const noSubscribe = () => () => {};
+
+function SpeakerIcon({ off }: { off: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M11 5 6 9H2v6h4l5 4z" fill="currentColor" />
+      {off ? <path d="m22 9-6 6m0-6 6 6" /> : <path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14" />}
+    </svg>
+  );
+}
 
 /** Plays `live` over WebRTC in our own video element; offline, it tries again every few seconds.
  *  Pausing freezes the frame (and the sound); dragging a box over it reads the text there. */
@@ -24,6 +45,8 @@ export default function LivePlayer() {
   const [playing, setPlaying] = useState(false);
   const [hasFrame, setHasFrame] = useState(false); // connected comes a moment before the first frame
   const [muted, setMuted] = useState(true); // browsers only autoplay muted
+  const [volume, setVolume] = useState(1);
+  const volumeFixed = useSyncExternalStore(noSubscribe, volumeIsFixed, () => false);
   const [paused, setPaused] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
   const [size, setSize] = useState({ w: 1, h: 1 }); // the frozen frame, in stream pixels
@@ -47,7 +70,7 @@ export default function LivePlayer() {
     const connect = async () => {
       try {
         session = await whep("live", (stream) => {
-          video.current!.srcObject = stream;
+          if (!closed) video.current!.srcObject = stream; // a session closed mid-connect mustn't replace the picture
         });
         if (closed) return session.stop();
         session.pc.onconnectionstatechange = () => {
@@ -84,6 +107,15 @@ export default function LivePlayer() {
       session?.stop();
     };
   }, []);
+
+  /** The viewer's own volume; 0 mutes. */
+  const setSound = (v: number) => {
+    video.current!.volume = v;
+    setVolume(v);
+    setMuted(v === 0);
+  };
+
+  const toggleSound = () => (muted && volume === 0 ? setSound(1) : setMuted(!muted));
 
   const pause = () => {
     const v = video.current!;
@@ -209,10 +241,29 @@ export default function LivePlayer() {
             {reconnecting ? "Reconnecting…" : "Offline. This starts by itself when I go live."}
           </p>
         )}
-        {playing && !paused && muted && (
-          <button onClick={() => setMuted(false)} className={`${overlayButton} bottom-4 left-4`}>
-            Tap to unmute
-          </button>
+        {playing && !paused && (
+          <div className="absolute bottom-4 left-4 flex items-center gap-2 rounded-full bg-black/70 px-3 py-1.5 text-white">
+            <button
+              onClick={toggleSound}
+              aria-label={muted ? "Turn sound on" : "Turn sound off"}
+              title={muted ? "Turn sound on" : "Turn sound off"}
+              className="opacity-90 hover:opacity-100"
+            >
+              <SpeakerIcon off={muted} />
+            </button>
+            {!volumeFixed && (
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={muted ? 0 : volume}
+                onChange={(e) => setSound(Number(e.target.value))}
+                aria-label="Volume"
+                className="w-16 cursor-pointer accent-white sm:w-24"
+              />
+            )}
+          </div>
         )}
         {playing && hasFrame && !paused && (
           <button onClick={pause} className={`${overlayButton} bottom-4 right-4`}>
