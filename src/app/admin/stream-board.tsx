@@ -100,6 +100,9 @@ export default function StreamBoard() {
   const [previewSound, setPreviewSound] = useState(false);
   const [slow, setSlow] = useState(false);
   const [error, setError] = useState("");
+  const anySource = sharing.screen || sharing.cam || test;
+  // Live keeps sending frames even with no sources. Preview sound alone has nothing to play
+  const active = live || anySource;
 
   // One mixer for the page's life; its canvas is the preview
   useEffect(() => {
@@ -124,6 +127,10 @@ export default function StreamBoard() {
     return () => clearInterval(id);
   }, [live]);
 
+  useEffect(() => {
+    mixer.current!.setActive(active);
+  }, [active]);
+
   /** Change the layout; it takes effect on the next frame. */
   const change = (l: Partial<Layout>) => {
     mixer.current!.setLayout(l);
@@ -144,7 +151,7 @@ export default function StreamBoard() {
   const toggleSharing = async (source: Source) => {
     if (captured.current[source]) return stopSharing(source);
     setError("");
-    mixer.current!.audio.resume(); // the AudioContext may only start after a click
+    mixer.current!.startAudio(); // the AudioContext may only start after a click
     try {
       const stream = await capture[source]();
       // "Stop sharing" in the browser's own bar
@@ -165,6 +172,8 @@ export default function StreamBoard() {
       }
       setSharing((s) => ({ ...s, [source]: true }));
     } catch (e) {
+      // Cancelled or refused: nothing turned on, so the audio started above isn't needed
+      mixer.current!.stopAudioIfIdle();
       setError(e instanceof Error ? e.message : String(e));
     }
   };
@@ -177,7 +186,7 @@ export default function StreamBoard() {
       return;
     }
     (["screen", "cam"] as Source[]).forEach(stopSharing);
-    mixer.current!.audio.resume();
+    mixer.current!.startAudio();
     stopTest.current = startTestSource(mixer.current!);
     setTest(true);
   };
@@ -185,7 +194,7 @@ export default function StreamBoard() {
   const goLive = async () => {
     setError("");
     setStarting(true);
-    mixer.current!.audio.resume();
+    mixer.current!.startAudio();
     try {
       const res = await fetch("/api/stream/token", { method: "POST", credentials: "include" });
       if (res.status === 409) throw new Error("Already live from another tab or device. End that stream first (after a crash, the old one lingers for about 30 seconds).");
@@ -228,8 +237,6 @@ export default function StreamBoard() {
     change(clamp({ x: (e.clientX - r.left) * s - w / 2, y: (e.clientY - r.top) * s - (w * 9) / 32, w }));
   };
   const resize = (w: number) => change(clamp({ ...layout, w }));
-
-  const anySource = sharing.screen || sharing.cam || test;
 
   return (
     <div className="space-y-4">

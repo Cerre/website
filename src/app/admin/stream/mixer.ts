@@ -69,7 +69,8 @@ export class Mixer {
   private mic: AudioNode | null = null;
   private micGain: GainNode;
   private mix: GainNode;
-  private stopTicks: () => void;
+  private stopTicks: (() => void) | null = null;
+  private starting: Promise<void> = Promise.resolve();
   private beforeDraw: (() => void)[] = [];
   private frames = 0;
   private since = performance.now();
@@ -87,7 +88,45 @@ export class Mixer {
     const video = this.canvas.captureStream(FPS).getVideoTracks()[0];
     video.contentHint = "detail"; // keep resolution under load, so text stays sharp
     this.output = new MediaStream([video, ...out.stream.getAudioTracks()]);
-    this.stopTicks = ticker(() => this.tick());
+    this.audio.suspend(); // idle until setActive(true)
+  }
+
+  /** Whether the frame clock and the audio are running. */
+  get active() {
+    return this.stopTicks !== null;
+  }
+
+  /** Run the frame clock and the audio only while something uses them. Idle, they would
+   *  redraw black 30 times a second and keep a sound device open, for as long as the tab is. */
+  setActive(on: boolean) {
+    if (on === this.active) return;
+    if (on) {
+      this.frames = 0;
+      this.since = performance.now();
+      this.fps = FPS;
+      this.stopTicks = ticker(() => this.tick());
+      this.startAudio();
+    } else {
+      this.stopTicks!();
+      this.stopTicks = null;
+      // One last black frame, so the preview doesn't keep the old picture
+      this.ctx.fillStyle = "#000";
+      this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+      this.stopAudioIfIdle();
+    }
+  }
+
+  /** Start the audio. Call it from a click too: browsers only let audio start after one. */
+  startAudio() {
+    this.starting = this.audio.resume();
+  }
+
+  /** Suspend the audio unless the board is in use. Chrome ignores a suspend() made before a
+   *  resume() lands, so this waits for any still on its way. */
+  stopAudioIfIdle() {
+    this.starting.then(() => {
+      if (!this.active) this.audio.suspend();
+    });
   }
 
   /** Output width: 1920 (1080p) or 1280 (720p). */
@@ -128,7 +167,7 @@ export class Mixer {
   }
 
   close() {
-    this.stopTicks();
+    this.stopTicks?.();
     this.output.getTracks().forEach((t) => t.stop());
     this.audio.close();
   }
